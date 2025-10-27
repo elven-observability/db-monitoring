@@ -1,0 +1,21 @@
+services:
+  opentelemetry-collector:
+    build:
+      context: ./otel-collector
+      dockerfile: Dockerfile
+    container_name: otel-collector
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "9090:9090"
+    volumes:
+      - ./otel-collector/collector-config.yaml:/conf/collector-config.yaml:ro
+    env_file:
+      - ./otel-collector/env.example
+    restart: unless-stopped
+    networks:
+      - monitoring-network
+
+networks:
+  monitoring-network:
+    driver: bridge

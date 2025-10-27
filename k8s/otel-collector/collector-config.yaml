@@ -1,0 +1,219 @@
+receivers:
+  redis:
+    endpoint: ${env:REDIS_ENDPOINT}
+    collection_interval: 30s
+    password: ${env:REDIS_PASSWORD}
+
+    # TLS configuration (opcional)
+    # tls:
+    #   insecure: ${env:REDIS_TLS_INSECURE}
+    #   insecure_skip_verify: ${env:REDIS_TLS_SKIP_VERIFY}
+
+    metrics:
+      redis.cmd.calls:
+        enabled: true
+      redis.cmd.usec:
+        enabled: true
+      redis.cmd.latency:
+        enabled: true
+
+  postgresql:
+    endpoint: ${env:POSTGRES_ENDPOINT}
+    transport: tcp
+    username: ${env:POSTGRES_USERNAME}
+    password: ${env:POSTGRES_PASSWORD}
+    collection_interval: 30s
+
+    # Database (opcional)
+    # databases:
+    #   - ${env:POSTGRES_DATABASE}
+
+    # TLS configuration (opcional)
+    # tls:
+    #   insecure: ${env:POSTGRES_TLS_INSECURE}
+    #   insecure_skip_verify: ${env:POSTGRES_TLS_SKIP_VERIFY}
+
+    metrics:
+      postgresql.blocks_read:
+        enabled: true
+      postgresql.database.locks:
+        enabled: true
+      postgresql.replication.data_delay:
+        enabled: true
+      postgresql.wal.age:
+        enabled: true
+
+    events:
+      db.server.query_sample:
+        enabled: true
+      db.server.top_query:
+        enabled: true
+
+  mongodb:
+    hosts:
+      - ${env:MONGODB_ENDPOINT}
+    username: ${env:MONGODB_USERNAME}
+    password: ${env:MONGODB_PASSWORD}
+    collection_interval: 30s
+    initial_delay: 1s
+
+    # TLS configuration (opcional)
+    # tls:
+    #   insecure: ${env:MONGODB_TLS_INSECURE}
+    #   insecure_skip_verify: ${env:MONGODB_TLS_SKIP_VERIFY}
+
+    metrics:
+      mongodb.lock.acquire.count:
+        enabled: true
+      mongodb.lock.acquire.wait_count:
+        enabled: true
+
+  mysql:
+    endpoint: ${env:MYSQL_ENDPOINT}
+    username: ${env:MYSQL_USERNAME}
+    password: ${env:MYSQL_PASSWORD}
+    collection_interval: 30s
+
+    # Database (opcional)
+    # database: ${env:MYSQL_DATABASE}
+
+    # TLS configuration (opcional)
+    # tls:
+    #   insecure: ${env:MYSQL_TLS_INSECURE}
+    #   insecure_skip_verify: ${env:MYSQL_TLS_SKIP_VERIFY}
+
+    metrics:
+      mysql.commands:
+        enabled: true
+      mysql.connection.count:
+        enabled: true
+      mysql.connection.errors:
+        enabled: true
+      mysql.query.count:
+        enabled: true
+      mysql.query.slow.count:
+        enabled: true
+      mysql.client.network.io:
+        enabled: true
+
+  rabbitmq:
+    endpoint: ${env:RABBITMQ_ENDPOINT}
+    username: ${env:RABBITMQ_USERNAME}
+    password: ${env:RABBITMQ_PASSWORD}
+    collection_interval: 30s
+
+    # TLS configuration (opcional)    
+    # tls:
+    #   insecure: ${env:RABBITMQ_TLS_INSECURE}
+    #   insecure_skip_verify: ${env:RABBITMQ_TLS_SKIP_VERIFY}
+    
+    metrics:
+      rabbitmq.consumer.count:
+        enabled: true
+      
+      rabbitmq.message.current:
+        enabled: true
+      rabbitmq.message.delivered:
+        enabled: true
+      rabbitmq.message.dropped:
+        enabled: true
+      rabbitmq.message.published:
+        enabled: true
+      
+      rabbitmq.queue.consumer.count:
+        enabled: true
+      rabbitmq.queue.count:
+        enabled: true
+      rabbitmq.queue.message.count:
+        enabled: true
+
+exporters:
+  prometheusremotewrite:
+    endpoint: https://mimir.elvenobservability.com/api/v1/push
+    headers:
+      X-Scope-OrgID: "${TENANT_ID}"
+      Authorization: "Bearer ${API_TOKEN}"
+    resource_to_telemetry_conversion:
+      enabled: true
+
+processors:
+  resource/add_redis_labels:
+    attributes:
+      - action: insert
+        key: job
+        value: redis
+      - action: insert
+        key: instance
+        value: # ex: elven-observability-redis
+      - action: insert
+        key: environment
+        value: production
+
+  resource/add_postgres_labels:
+    attributes:
+      - action: insert
+        key: job
+        value: postgres
+      - action: insert
+        key: instance
+        value: # ex: elven-observability-postgres
+      - action: insert
+        key: environment
+        value: production
+
+  resource/add_mongo_labels:
+    attributes:
+      - action: insert
+        key: job
+        value: mongodb
+      - action: insert
+        key: instance
+        value: # ex: elven-observability-mongo
+      - action: insert
+        key: environment
+        value: production
+
+  resource/add_mysql_labels:
+    attributes:
+      - action: insert
+        key: job
+        value: mysql
+      - action: insert
+        key: instance
+        value: # ex: elven-observability-mysql.
+      - action: insert
+        key: environment
+        value: production
+
+  batch: {}
+  filter:
+    metrics:
+      exclude:
+        match_type: regexp
+        metric_names:
+          - "go_.*"
+          - "scrape_.*"
+          - "otlp_.*"
+          - "promhttp_.*"
+
+service:
+  pipelines:
+    metrics/redis:
+      receivers: [redis]
+      processors: [resource/add_redis_labels, batch, filter]
+      exporters: [prometheusremotewrite]
+
+    metrics/postgres:
+      receivers: [postgresql]
+      processors: [resource/add_postgres_labels, batch, filter]
+      exporters: [prometheusremotewrite]
+
+    metrics/mongodb:
+      receivers: [mongodb]
+      processors: [resource/add_mongo_labels, batch, filter]
+      exporters: [prometheusremotewrite]
+
+    metrics/mysql:
+      receivers: [mysql]
+      processors: [resource/add_mysql_labels, batch, filter]
+      exporters: [prometheusremotewrite]
